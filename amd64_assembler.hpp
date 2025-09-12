@@ -10,10 +10,6 @@ namespace amd64 {
     constexpr auto instruction_length_limit = 15;
 
     namespace register_type {
-        struct al{};
-        struct ax{};
-        struct eax{};
-        struct rax{};
 
         enum class reg8 : uint8_t {
             al = 0,
@@ -59,6 +55,12 @@ namespace amd64 {
             rsi = 6,
             rdi = 7,
         };
+
+        template<size_t N>
+        struct ax_r {
+            constexpr auto size() { return N; }
+        };
+
         enum class extended_reg64 : uint8_t {};
         enum class extention : uint8_t {
             legacy,
@@ -67,17 +69,40 @@ namespace amd64 {
         template<size_t N, extention Ext = extention::legacy>
         struct reg {
         };
-        template<size_t N, extention Ext = extention::legacy>
-        using reg_t = reg<N, Ext>;
-        template<> struct reg<8> { using type = reg8; };
-        template<> struct reg<16> { using type = reg16; };
-        template<> struct reg<32> { using type = reg32; };
-        template<> struct reg<64> { using type = reg64; };
+        template<> struct reg<8> {
+            reg8 r;
+            constexpr auto size() { return 8; }
+        };
+        template<> struct reg<16> {
+            reg16 r;
+            constexpr auto size() { return 16; }
+        };
+        template<> struct reg<32> {
+            constexpr reg() = default;
+            constexpr reg(reg32 r) : r{r}{}
+            constexpr reg(ax_r<32> t) : r{ reg32::eax } {}
+            
+            constexpr auto size() { return 32; }
+            reg32 r;
+        };
+        template<> struct reg<64> {
+            constexpr auto size() { return 64; }
+            reg64 r; };
         
-        template<> struct reg<8, extention::extended> { using type = extended_reg8; };
-        template<> struct reg<16, extention::extended> { using type = extended_reg16; };
-        template<> struct reg<32, extention::extended> { using type = extended_reg32; };
-        template<> struct reg<64, extention::extended> { using type = extended_reg64; };
+        template<> struct reg<8, extention::extended> {
+            constexpr auto size() { return 8; }
+            extended_reg8 r; };
+        template<> struct reg<16, extention::extended> {
+            constexpr auto size() { return 16; }
+            extended_reg16 r; };
+        template<> struct reg<32, extention::extended> {
+            constexpr auto size() { return 32; }
+            extended_reg32 r; };
+        template<> struct reg<64, extention::extended> {
+            constexpr auto size() { return 64; }
+            extended_reg64 r; };
+
+
 
         enum class modrm_reg64_address : uint8_t {
             rax = 0,
@@ -110,6 +135,13 @@ namespace amd64 {
             Ref m_ref;
         };
     }
+
+    constexpr auto al = register_type::ax_r<8>{};
+    constexpr auto ax = register_type::ax_r<16>{};
+    constexpr auto eax = register_type::ax_r<32>{};
+    constexpr auto rax = register_type::ax_r<64>{};
+
+    constexpr auto ebx = register_type::reg<32>{ register_type::reg32::ebx };
 
     template<size_t N>
     class bits {
@@ -166,18 +198,16 @@ namespace amd64 {
         auto set_reg(register_type::reg64 reg) && {
             return modrm{3, static_cast<uint8_t>(reg), m_rm};
         }
-        auto set_rm(register_type::reg8 dst) && {
-            return modrm{3, m_reg, static_cast<uint8_t>(dst)};
+
+        template<size_t N>
+        auto set_rm(register_type::ax_r<N> r) && {
+            return modrm{3, m_reg, 0};
         }
-        auto set_rm(register_type::reg16 dst) && {
-            return modrm{3, m_reg, static_cast<uint8_t>(dst)};
+        template<size_t N>
+        auto set_rm(register_type::reg<N> r) && {
+            return modrm{3, m_reg, static_cast<uint8_t>(r.r)};
         }
-        auto set_rm(register_type::reg32 dst) && {
-            return modrm{3, m_reg, static_cast<uint8_t>(dst)};
-        }
-        auto set_rm(register_type::reg64 dst) && {
-            return modrm{3, m_reg, static_cast<uint8_t>(dst)};
-        }
+
         auto set_rm(register_type::mem8<register_type::modrm_reg64_address> dst) &&{
             return modrm{0, m_reg, static_cast<uint8_t>(dst.m_ref)};
         }
@@ -250,6 +280,19 @@ namespace amd64 {
         return res;
     }
     template<size_t N>
+    constexpr auto cat(std::array<uint8_t, N> first, uint8_t second) {
+        auto res = std::array<uint8_t, N+1>{};
+        std::ranges::copy(first, res.begin());
+        res[N] = second;
+        return res;
+    }
+    constexpr auto cat(auto first, modrm second) {
+        return cat(first, uint8_t{second});
+    }
+    constexpr auto cat(auto first, auto second, auto... others) {
+        return cat(cat(first,second), others...);
+    }
+    template<size_t N>
     struct imm {
     };
     template<> struct imm<8> { using type = uint8_t; };
@@ -264,50 +307,65 @@ namespace amd64 {
             static_cast<uint8_t>(imm16), static_cast<uint8_t>(imm16>>8) };
     }
     auto to_codes(uint32_t imm32) {
-        return std::array<uint8_t, 4>{static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)};
+        return std::array<uint8_t, 4>{static_cast<uint8_t>(imm32), static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)};
     }
 
-    auto adc(register_type::al dst, uint8_t imm8) {
-        return std::array<uint8_t, 2>{0x14, imm8};
+    auto prefix_for_16(auto imm) {
+        return std::array<uint8_t, 0>{};
     }
-    auto adc(register_type::ax dst, uint16_t imm16) {
-        return std::to_array({uint8_t{0x66}, uint8_t{0x15}, static_cast<uint8_t>(imm16), static_cast<uint8_t>(imm16>>8)});
+    auto prefix_for_16(register_type::reg<16> reg) {
+        return std::array<uint8_t, 1>{ 0x66 };
     }
-    auto adc(register_type::eax dst, uint32_t imm32) {
-        return std::to_array({uint8_t{0x15}, static_cast<uint8_t>(imm32), static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)});
+    auto prefix_for_64(auto reg) {
+        return std::array<uint8_t, 0>{};
     }
-    auto adc(register_type::rax dst, uint32_t imm32) {
-        return std::to_array({uint8_t{rex{}.set_w(1)}, uint8_t{0x15}, static_cast<uint8_t>(imm32), static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)});
+    auto prefix_for_64(register_type::reg<64> reg) {
+        return std::array<uint8_t, 1>{ rex{}.set_w(1) };
+    }
+    template<size_t N>
+    struct imm_for {
+        using type = imm_t<N>;
+    };
+    template<size_t N>
+    using imm_for_t = imm_for<N>::type;
+    template<>
+    struct imm_for<64> {
+        using type = imm_t<32>;
+    };
+
+    template<size_t N>
+    auto adc(register_type::ax_r<N> dst, imm_for_t<N> imm) {
+        return cat(
+                prefix_for_16(dst),
+                prefix_for_64(dst),
+                static_cast<uint8_t>(0x15 ^ (N==8)),
+                to_codes(imm)
+                );
     }
 
-    auto adc(register_type::reg8 dst, uint8_t imm8) {
-        return std::to_array({uint8_t{0x80}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}, imm8});
+    template<size_t N>
+    auto adc(register_type::reg<N> dst, imm_for_t<N> imm) {
+        return cat(
+                prefix_for_16(dst),
+                prefix_for_64(dst),
+                static_cast<uint8_t>(0x81 ^ (N==8)),
+                modrm{}.set_reg(2).set_rm(dst),
+                to_codes(imm)
+                );
     }
     auto adc(register_type::mem8<register_type::modrm_reg64_address> dst, uint8_t imm8) {
         return std::to_array({uint8_t{0x80}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}, imm8});
     }
-    auto adc(register_type::reg16 dst, uint16_t imm16) {
-        return cat(std::to_array({
-                    uint8_t{0x66},
-                    uint8_t{0x81}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}}),
-                to_codes(imm16)
+
+    template<typename T>
+    concept reg_c = (std::same_as<T, register_type::ax_r<32>> || std::same_as<T, register_type::reg<32>>);
+
+    auto adc(reg_c auto dst, reg_c auto src) {
+        return cat(
+                prefix_for_16(dst),
+                prefix_for_64(dst),
+                static_cast<uint8_t>(0x11 ^ (8 == src.size())),
+                modrm{}.set_reg(src.r).set_rm(dst)
                 );
-    }
-    auto adc(register_type::reg32 dst, uint32_t imm32) {
-        return cat(std::to_array({
-                uint8_t{0x81}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}}),
-                to_codes(imm32)
-                );
-    }
-    auto adc(register_type::reg64 dst, uint32_t imm32) {
-        return cat(std::to_array({
-                uint8_t{rex{}.set_w(1)},
-                uint8_t{0x81}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}}),
-                to_codes(imm32)
-                );
-    }
-    template<size_t N1, size_t N2>
-        requires (N1==N2 || N1==64 && N2 == 32)
-    auto adc(register_type::reg_t<N1> dst, imm_t<N2> imm) {
     }
 }
