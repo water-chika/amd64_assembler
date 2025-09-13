@@ -262,15 +262,26 @@ namespace amd64 {
         [std::to_underlying(operation::adc)] = 0x15,
     });
 
-    template<uint8_t Opcode, size_t N>
-    auto ax_imm_instruction(register_type::ax_r<N> dst, imm_for_t<N> imm) {
-        return cat(
-                prefix_for_16(dst),
-                prefix_for_64(dst),
-                static_cast<uint8_t>(Opcode ^ (N==8)),
-                to_codes(imm)
-                );
-    }
+    template<uint8_t Opcode_for_8, auto Opcode_for_16_32>
+    struct imm_instruction {
+        constexpr static auto operator ()(int8_t imm) {
+            return cat(
+                    prefix_for_16(imm),
+                    prefix_for_64(imm),
+                    Opcode_for_8,
+                    to_codes(imm)
+                    );
+        }
+        template<typename T>
+        constexpr static auto operator ()(T imm) {
+            return cat(
+                    prefix_for_16(imm),
+                    prefix_for_64(imm),
+                    Opcode_for_16_32,
+                    to_codes(imm)
+                    );
+        }
+    };
 
     struct opcode_modrm_reg {
         uint8_t opcode;
@@ -282,7 +293,7 @@ namespace amd64 {
         template<size_t N>
         constexpr static auto operator ()(register_type::ax_r<N> dst, std::integral auto imm) {
             imm_for_reg_t<register_type::ax_r<N>> i = imm;
-            return ax_imm_instruction<Opcode_ax_imm, N>(dst, i);
+            return imm_instruction<Opcode_ax_imm ^ (N==8), Opcode_ax_imm>{}(i);
         }
         constexpr static auto operator ()(reg_or_mem auto dst, std::integral auto imm) {
             imm_for_reg_t<std::remove_cvref_t<decltype(dst)>> i = imm;
@@ -390,27 +401,6 @@ namespace amd64 {
     constexpr auto idiv = regmem_instruction<{0xf7, 7}>{};
     constexpr auto imul = regmem_instruction<{0xf7, 5}>{};
 
-    template<uint8_t Opcode_for_8, auto Opcode_for_16_32>
-    struct imm_instruction {
-        constexpr static auto operator ()(int8_t imm) {
-            return cat(
-                    prefix_for_16(imm),
-                    prefix_for_64(imm),
-                    Opcode_for_8,
-                    to_codes(imm)
-                    );
-        }
-        template<typename T>
-        constexpr static auto operator ()(T imm) {
-            return cat(
-                    prefix_for_16(imm),
-                    prefix_for_64(imm),
-                    Opcode_for_16_32,
-                    to_codes(imm)
-                    );
-        }
-    };
-
     template<bits<4> Condition_code>
     using jcc_instruction = imm_instruction<0x70 | Condition_code, std::to_array({0x0f, 0x80 | Condition_code})>;
 
@@ -433,4 +423,6 @@ namespace amd64 {
     constexpr auto jnl = jcc_instruction<0xd>{};
     constexpr auto jle = jcc_instruction<0xe>{};
     constexpr auto jnle= jcc_instruction<0xf>{};
+
+    constexpr auto jmp = cpp_helper::overloads<imm_instruction<0xeb, 0xe9>,regmem_instruction<{0xff, 4}>>{};
 }
