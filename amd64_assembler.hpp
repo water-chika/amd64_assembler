@@ -6,143 +6,10 @@
 #include <cassert>
 #include <algorithm>
 
+#include "general_purpose_register.hpp"
+
 namespace amd64 {
     constexpr auto instruction_length_limit = 15;
-
-    namespace register_type {
-
-        enum class reg8 : uint8_t {
-            al = 0,
-            cl = 1,
-            dl = 2,
-            bl = 3,
-            ah = 4,
-            ch = 5,
-            dh = 6,
-            bh = 7
-        };
-        enum class extended_reg8 : uint8_t {
-        };
-        enum class reg16 : uint8_t {
-            ax = 0,
-            cx = 1,
-            dx = 2,
-            bx = 3,
-            sp = 4,
-            bp = 5,
-            si = 6,
-            di = 7,
-        };
-        enum class extended_reg16 : uint8_t {};
-        enum class reg32 : uint8_t {
-            eax = 0,
-            ecx = 1,
-            edx = 2,
-            ebx = 3,
-            esp = 4,
-            ebp = 5,
-            esi = 6,
-            edi = 7,
-        };
-        enum class extended_reg32 : uint8_t {};
-        enum class reg64 : uint8_t {
-            rax = 0,
-            rcx = 1,
-            rdx = 2,
-            rbx = 3,
-            rsp = 4,
-            rbp = 5,
-            rsi = 6,
-            rdi = 7,
-        };
-
-        template<size_t N>
-        struct ax_r {
-            constexpr auto size() { return N; }
-        };
-
-        enum class extended_reg64 : uint8_t {};
-        enum class extention : uint8_t {
-            legacy,
-            extended
-        };
-        template<size_t N, extention Ext = extention::legacy>
-        struct reg {
-        };
-        template<> struct reg<8> {
-            reg8 r;
-            constexpr auto size() { return 8; }
-        };
-        template<> struct reg<16> {
-            reg16 r;
-            constexpr auto size() { return 16; }
-        };
-        template<> struct reg<32> {
-            constexpr reg() = default;
-            constexpr reg(reg32 r) : r{r}{}
-            constexpr reg(ax_r<32> t) : r{ reg32::eax } {}
-            
-            constexpr auto size() { return 32; }
-            reg32 r;
-        };
-        template<> struct reg<64> {
-            constexpr auto size() { return 64; }
-            reg64 r; };
-        
-        template<> struct reg<8, extention::extended> {
-            constexpr auto size() { return 8; }
-            extended_reg8 r; };
-        template<> struct reg<16, extention::extended> {
-            constexpr auto size() { return 16; }
-            extended_reg16 r; };
-        template<> struct reg<32, extention::extended> {
-            constexpr auto size() { return 32; }
-            extended_reg32 r; };
-        template<> struct reg<64, extention::extended> {
-            constexpr auto size() { return 64; }
-            extended_reg64 r; };
-
-
-
-        enum class modrm_reg64_address : uint8_t {
-            rax = 0,
-            rcx = 1,
-            rdx = 2,
-            rbx = 3,
-            rbp = 5,
-            rsi = 6,
-            rdi = 7,
-        };
-        template<typename Reg>
-        struct base{
-            Reg m_reg;
-        };
-        template<typename Imm>
-        struct scale{
-            Imm m_imm;
-        };
-        template<typename Reg>
-        struct index{
-            Reg m_reg;
-        };
-        template<typename Ref, typename... Refs>
-        struct mem8 {
-            Ref m_ref;
-            mem8<Refs...> m_refs;
-        };
-        template<typename Ref>
-        struct mem8<Ref> {
-            Ref m_ref;
-        };
-    }
-
-    constexpr auto al = register_type::ax_r<8>{};
-    constexpr auto ax = register_type::ax_r<16>{};
-    constexpr auto eax = register_type::ax_r<32>{};
-    constexpr auto rax = register_type::ax_r<64>{};
-
-    constexpr auto ebx = register_type::reg<32>{ register_type::reg32::ebx };
-
     template<size_t N>
     class bits {
     public:
@@ -162,6 +29,28 @@ namespace amd64 {
     using bit1 = bits<1>;
     using bit2 = bits<2>;
     using bit3 = bits<3>;
+
+    template<typename Reg>
+    struct base{
+        Reg m_reg;
+    };
+    template<typename Imm>
+    struct scale{
+        Imm m_imm;
+    };
+    template<typename Reg>
+    struct index{
+        Reg m_reg;
+    };
+    template<typename Ref, typename... Refs>
+    struct mem8 {
+        Ref m_ref;
+        mem8<Refs...> m_refs;
+    };
+    template<typename Ref>
+    struct mem8<Ref> {
+        Ref m_ref;
+    };
 
     class modrm {
     public:
@@ -208,7 +97,7 @@ namespace amd64 {
             return modrm{3, m_reg, static_cast<uint8_t>(r.r)};
         }
 
-        auto set_rm(register_type::mem8<register_type::modrm_reg64_address> dst) &&{
+        auto set_rm(mem8<register_type::modrm_reg64_address> dst) &&{
             return modrm{0, m_reg, static_cast<uint8_t>(dst.m_ref)};
         }
     private:
@@ -353,14 +242,11 @@ namespace amd64 {
                 to_codes(imm)
                 );
     }
-    auto adc(register_type::mem8<register_type::modrm_reg64_address> dst, uint8_t imm8) {
+    auto adc(mem8<register_type::modrm_reg64_address> dst, uint8_t imm8) {
         return std::to_array({uint8_t{0x80}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}, imm8});
     }
 
-    template<typename T>
-    concept reg_c = (std::same_as<T, register_type::ax_r<32>> || std::same_as<T, register_type::reg<32>>);
-
-    auto adc(reg_c auto dst, reg_c auto src) {
+    auto adc(gpr auto dst, gpr auto src) {
         return cat(
                 prefix_for_16(dst),
                 prefix_for_64(dst),
