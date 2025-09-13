@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cassert>
 #include <algorithm>
+#include <utility>
 
 #include "general_purpose_register.hpp"
 
@@ -255,6 +256,10 @@ namespace amd64 {
         adc,
         add
     };
+
+    constexpr auto ax_imm_opcode_map = std::to_array({
+        [std::to_underlying(operation::adc)] = 0x15,
+    });
 
     template<uint8_t Opcode, size_t N>
     auto ax_imm_instruction(register_type::ax_r<N> dst, imm_for_t<N> imm) {
