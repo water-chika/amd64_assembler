@@ -12,18 +12,16 @@
 namespace amd64 {
     constexpr auto instruction_length_limit = 15;
     template<size_t N>
-    class bits {
-    public:
+    struct bits {
         static_assert(N <= 8);
-        bits() = default;
-        bits(uint8_t v) : m_v{v}
+        constexpr bits() = default;
+        constexpr bits(uint8_t v) : m_v{v}
         {
             assert(v < (1<<N));
         }
-        operator uint8_t() const {
+        constexpr operator uint8_t() const {
             return m_v;
         }
-    private:
         uint8_t m_v : N;
     };
 
@@ -271,70 +269,48 @@ namespace amd64 {
                 );
     }
 
-    template<size_t N>
-    auto adc(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x15, N>(dst, i);
-    }
-    template<size_t N>
-    auto add(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x05, N>(dst, i);
-    }
-    template<size_t N>
-    auto and_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x25, N>(dst, i);
-    }
-    template<size_t N>
-    auto cmp(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x3d, N>(dst, i);
-    }
-    template<size_t N>
-    auto or_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x0d, N>(dst, i);
-    }
-    template<size_t N>
-    auto sbb(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x1d, N>(dst, i);
-    }
-    template<size_t N>
-    auto sub(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x2d, N>(dst, i);
-    }
-    template<size_t N>
-    auto test(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0xa9, N>(dst, i);
-    }
-    template<size_t N>
-    auto xor_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
-        imm_for_reg_t<register_type::ax_r<N>> i = imm;
-        return ax_imm_instruction<0x35, N>(dst, i);
-    }
+    struct regmem_imm_opcode {
+        uint8_t opcode;
+        bit3 modrm_reg;
+    };
 
-    auto adc(reg_or_mem auto dst, std::integral auto imm) {
-        imm_for_reg_t<std::remove_cvref_t<decltype(dst)>> i = imm;
-        return cat(
-                prefix_for_16(dst),
-                prefix_for_64(dst),
-                static_cast<uint8_t>(0x81 ^ (dst.size()==8)),
-                modrm{}.set_reg(2).set_rm(dst),
-                sib_for(dst),
-                to_codes(i)
-                );
-    }
+    template<uint8_t Opcode_ax_imm, regmem_imm_opcode Opcode_regmem_imm, uint8_t Opcode_regmem_reg>
+    struct arithmetic_instruction {
+        template<size_t N>
+        constexpr static auto operator ()(register_type::ax_r<N> dst, std::integral auto imm) {
+            imm_for_reg_t<register_type::ax_r<N>> i = imm;
+            return ax_imm_instruction<Opcode_ax_imm, N>(dst, i);
+        }
+        constexpr static auto operator ()(reg_or_mem auto dst, std::integral auto imm) {
+            imm_for_reg_t<std::remove_cvref_t<decltype(dst)>> i = imm;
+            return cat(
+                    prefix_for_16(dst),
+                    prefix_for_64(dst),
+                    static_cast<uint8_t>(Opcode_regmem_imm.opcode ^ (dst.size()==8)),
+                    modrm{}.set_reg(Opcode_regmem_imm.modrm_reg).set_rm(dst),
+                    sib_for(dst),
+                    to_codes(i)
+                    );
+        }
 
-    auto adc(gpr auto dst, gpr auto src) {
-        return cat(
-                prefix_for_16(dst),
-                prefix_for_64(dst),
-                static_cast<uint8_t>(0x11 ^ (8 == src.size())),
-                modrm{}.set_reg(src.r).set_rm(dst)
-                );
-    }
+        constexpr static auto operator ()(reg_or_mem auto dst, gpr auto src) {
+            return cat(
+                    prefix_for_16(dst),
+                    prefix_for_64(dst),
+                    static_cast<uint8_t>(Opcode_regmem_reg ^ (8 == src.size())),
+                    modrm{}.set_reg(src.r).set_rm(dst),
+                    sib_for(dst)
+                    );
+        }
+    };
+    constexpr auto adc      = arithmetic_instruction<0x15, {0x81,2}, 0x11>{};
+    constexpr auto add      = arithmetic_instruction<0x05, {0x81,0}, 0x01>{};
+    constexpr auto bit_and  = arithmetic_instruction<0x25, {0x81,4}, 0x21>{};
+    constexpr auto cmp      = arithmetic_instruction<0x3d, {0x81,7}, 0x39>{};
+    constexpr auto bit_or   = arithmetic_instruction<0x0d, {0x81,1}, 0x09>{};
+    constexpr auto sbb      = arithmetic_instruction<0x1d, {0x81,3}, 0x19>{};
+    constexpr auto sub      = arithmetic_instruction<0x2d, {0x81,5}, 0x29>{};
+    constexpr auto test     = arithmetic_instruction<0xa9, {0xf7,0}, 0x85>{};
+    constexpr auto bit_xor  = arithmetic_instruction<0x35, {0x81,6}, 0x31>{};
+
 }
