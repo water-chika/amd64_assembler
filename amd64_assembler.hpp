@@ -408,20 +408,27 @@ namespace amd64 {
                     );
         }
     };
-    constexpr auto jo  = imm_instruction<0x70, std::to_array({0x0f, 0x80})>{};
-    constexpr auto jno = imm_instruction<0x71, std::to_array({0x0f, 0x81})>{};
-    constexpr auto jb  = imm_instruction<0x72, std::to_array({0x0f, 0x82})>{};
-    constexpr auto jnb = imm_instruction<0x73, std::to_array({0x0f, 0x83})>{};
-    constexpr auto jz  = imm_instruction<0x74, std::to_array({0x0f, 0x84})>{};
-    constexpr auto jnz = imm_instruction<0x75, std::to_array({0x0f, 0x85})>{};
-    constexpr auto jbe = imm_instruction<0x76, std::to_array({0x0f, 0x86})>{};
-    constexpr auto jnbe= imm_instruction<0x77, std::to_array({0x0f, 0x87})>{};
-    constexpr auto js  = imm_instruction<0x78, std::to_array({0x0f, 0x88})>{};
-    constexpr auto jns = imm_instruction<0x79, std::to_array({0x0f, 0x89})>{};
-    constexpr auto jp  = imm_instruction<0x7a, std::to_array({0x0f, 0x8a})>{};
-    constexpr auto jnp = imm_instruction<0x7b, std::to_array({0x0f, 0x8b})>{};
-    constexpr auto jl  = imm_instruction<0x7c, std::to_array({0x0f, 0x8c})>{};
-    constexpr auto jnl = imm_instruction<0x7d, std::to_array({0x0f, 0x8d})>{};
-    constexpr auto jle = imm_instruction<0x7e, std::to_array({0x0f, 0x8e})>{};
-    constexpr auto jnle= imm_instruction<0x7f, std::to_array({0x0f, 0x8f})>{};
+
+    template<bits<4> Condition_code>
+    using jcc_instruction = imm_instruction<0x70 | Condition_code, std::to_array({0x0f, 0x80 | Condition_code})>;
+
+    template<bits<4> Condition_code>
+    constexpr auto jcc = jcc_instruction<Condition_code>{};
+
+    constexpr auto jo  = jcc_instruction<0x0>{};
+    constexpr auto jno = jcc_instruction<0x1>{};
+    constexpr auto jb  = jcc_instruction<0x2>{};
+    constexpr auto jnb = jcc_instruction<0x3>{};
+    constexpr auto jz  = jcc_instruction<0x4>{};
+    constexpr auto jnz = jcc_instruction<0x5>{};
+    constexpr auto jbe = jcc_instruction<0x6>{};
+    constexpr auto jnbe= jcc_instruction<0x7>{};
+    constexpr auto js  = jcc_instruction<0x8>{};
+    constexpr auto jns = jcc_instruction<0x9>{};
+    constexpr auto jp  = jcc_instruction<0xa>{};
+    constexpr auto jnp = jcc_instruction<0xb>{};
+    constexpr auto jl  = jcc_instruction<0xc>{};
+    constexpr auto jnl = jcc_instruction<0xd>{};
+    constexpr auto jle = jcc_instruction<0xe>{};
+    constexpr auto jnle= jcc_instruction<0xf>{};
 }
