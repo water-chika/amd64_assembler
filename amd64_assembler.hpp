@@ -219,6 +219,7 @@ namespace amd64 {
     auto to_codes(uint32_t imm32) {
         return std::array<uint8_t, 4>{static_cast<uint8_t>(imm32), static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)};
     }
+    auto to_codes(int8_t imm8) { return to_codes(static_cast<uint8_t>(imm8));}
 
     auto prefix_for_16(auto imm) {
         return std::array<uint8_t, 0>{};
@@ -269,12 +270,12 @@ namespace amd64 {
                 );
     }
 
-    struct regmem_imm_opcode {
+    struct opcode_modrm_reg {
         uint8_t opcode;
         bit3 modrm_reg;
     };
 
-    template<uint8_t Opcode_ax_imm, regmem_imm_opcode Opcode_regmem_imm, uint8_t Opcode_regmem_reg>
+    template<uint8_t Opcode_ax_imm, opcode_modrm_reg Opcode_regmem_imm, uint8_t Opcode_regmem_reg>
     struct arithmetic_instruction {
         template<size_t N>
         constexpr static auto operator ()(register_type::ax_r<N> dst, std::integral auto imm) {
@@ -313,4 +314,102 @@ namespace amd64 {
     constexpr auto test     = arithmetic_instruction<0xa9, {0xf7,0}, 0x85>{};
     constexpr auto bit_xor  = arithmetic_instruction<0x35, {0x81,6}, 0x31>{};
 
+    template<uint8_t Opcode, typename T>
+        requires std::same_as<T,int16_t> || std::same_as<T, int32_t>
+    auto imm_16_32_instruction(T imm) {
+        return cat(
+                prefix_for_16(imm),
+                prefix_for_64(imm),
+                Opcode,
+                to_codes(imm)
+                );
+    }
+
+    template<uint8_t Opcode_imm, opcode_modrm_reg Opcode_regmem>
+    struct call_instruction {
+        constexpr static auto operator ()(std::integral auto imm) {
+            return imm_16_32_instruction<Opcode_imm, std::remove_cvref_t<decltype(imm)>>(imm);
+        }
+        constexpr static auto operator ()(reg_or_mem auto target) {
+            static_assert(target.size() == 16 || target.size() == 32 || target.size() == 64);
+            return cat(
+                    prefix_for_16(target),
+                    prefix_for_64(target),
+                    Opcode_regmem.opcode,
+                    modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(target),
+                    sib_for(target)
+                    );
+        }
+    };
+    constexpr auto call = call_instruction<0xe8, {0xff,2}>{};
+
+    template<auto Opcode, size_t N=32>
+    struct opcode_instruction {
+        constexpr static auto operator ()() {
+            return cat(
+                    prefix_for_16(imm_t<N>{}),
+                    prefix_for_64(imm_t<N>{}),
+                    Opcode
+                    );
+        }
+    };
+    constexpr auto cwb  = opcode_instruction<0x98, 16>{};
+    constexpr auto cwde = opcode_instruction<0x98, 32>{};
+    constexpr auto cdqe = opcode_instruction<0x98, 64>{};
+
+    constexpr auto cwd = opcode_instruction<0x99, 16>{};
+    constexpr auto cdq = opcode_instruction<0x99, 32>{};
+    constexpr auto cqo = opcode_instruction<0x99, 64>{};
+
+    constexpr auto clc = opcode_instruction<0xf8>{};
+    constexpr auto cld = opcode_instruction<0xfc>{};
+
+    constexpr auto clzero = opcode_instruction<std::to_array({0x0f, 0x01, 0xfc})>{};
+
+    constexpr auto cmc = opcode_instruction<0xf5>{};
+
+    constexpr auto cpuid = opcode_instruction<std::to_array({0x0f, 0xa2})>{};
+
+    template<opcode_modrm_reg Opcode_regmem>
+    struct regmem_instruction {
+        constexpr static auto operator ()(reg_or_mem auto target) {
+            static_assert(target.size() == 16 || target.size() == 32 || target.size() == 64);
+            return cat(
+                    prefix_for_16(target),
+                    prefix_for_64(target),
+                    Opcode_regmem.opcode,
+                    modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(target),
+                    sib_for(target)
+                    );
+        }
+    };
+
+    constexpr auto div  = regmem_instruction<{0xf7, 6}>{};
+    constexpr auto idiv = regmem_instruction<{0xf7, 7}>{};
+    constexpr auto imul = regmem_instruction<{0xf7, 5}>{};
+
+    template<uint8_t Opcode_for_8, auto Opcode_for_16_32>
+    struct imm_instruction {
+        constexpr static auto operator ()(int8_t imm) {
+            return cat(
+                    prefix_for_16(imm),
+                    prefix_for_64(imm),
+                    Opcode_for_8,
+                    to_codes(imm)
+                    );
+        }
+        template<typename T>
+        constexpr static auto operator ()(T imm) {
+            return cat(
+                    prefix_for_16(imm),
+                    prefix_for_64(imm),
+                    Opcode_for_16_32,
+                    to_codes(imm)
+                    );
+        }
+    };
+    constexpr auto jo  = imm_instruction<0x70, std::to_array({0x0f, 0x80})>{};
+    constexpr auto jno = imm_instruction<0x71, std::to_array({0x0f, 0x81})>{};
+    constexpr auto jb  = imm_instruction<0x72, std::to_array({0x0f, 0x82})>{};
+    constexpr auto jnb = imm_instruction<0x73, std::to_array({0x0f, 0x83})>{};
 }
