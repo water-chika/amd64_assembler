@@ -412,4 +412,16 @@ namespace amd64 {
     constexpr auto jno = imm_instruction<0x71, std::to_array({0x0f, 0x81})>{};
     constexpr auto jb  = imm_instruction<0x72, std::to_array({0x0f, 0x82})>{};
     constexpr auto jnb = imm_instruction<0x73, std::to_array({0x0f, 0x83})>{};
+    constexpr auto jz  = imm_instruction<0x74, std::to_array({0x0f, 0x84})>{};
+    constexpr auto jnz = imm_instruction<0x75, std::to_array({0x0f, 0x85})>{};
+    constexpr auto jbe = imm_instruction<0x76, std::to_array({0x0f, 0x86})>{};
+    constexpr auto jnbe= imm_instruction<0x77, std::to_array({0x0f, 0x87})>{};
+    constexpr auto js  = imm_instruction<0x78, std::to_array({0x0f, 0x88})>{};
+    constexpr auto jns = imm_instruction<0x79, std::to_array({0x0f, 0x89})>{};
+    constexpr auto jp  = imm_instruction<0x7a, std::to_array({0x0f, 0x8a})>{};
+    constexpr auto jnp = imm_instruction<0x7b, std::to_array({0x0f, 0x8b})>{};
+    constexpr auto jl  = imm_instruction<0x7c, std::to_array({0x0f, 0x8c})>{};
+    constexpr auto jnl = imm_instruction<0x7d, std::to_array({0x0f, 0x8d})>{};
+    constexpr auto jle = imm_instruction<0x7e, std::to_array({0x0f, 0x8e})>{};
+    constexpr auto jnle= imm_instruction<0x7f, std::to_array({0x0f, 0x8f})>{};
 }
