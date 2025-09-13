@@ -52,6 +52,24 @@ namespace amd64 {
         Ref m_ref;
     };
 
+    template<typename T>
+    struct is_memory {
+        constexpr static bool value = false;
+    };
+    template<typename... Refs>
+    struct is_memory<mem8<Refs...>> {
+        constexpr static bool value = true;
+    };
+
+    template<typename T>
+    constexpr bool is_memory_v = is_memory<T>::value;
+
+    template<typename T>
+    concept memory = is_memory_v<T>;
+
+    template<typename T>
+    concept reg_or_mem = gpr<T> || memory<T>;
+
     class modrm {
     public:
         modrm() = default;
@@ -161,6 +179,10 @@ namespace amd64 {
         bit1 m_w;
     };
 
+    constexpr auto sib_for(gpr auto reg) {
+        return std::array<uint8_t, 0>{};
+    }
+
     template<size_t N1, size_t N2>
     constexpr auto cat(std::array<uint8_t, N1> first, std::array<uint8_t, N2> second) {
         auto res = std::array<uint8_t, N1+N2>{};
@@ -222,28 +244,84 @@ namespace amd64 {
         using type = imm_t<32>;
     };
 
-    template<size_t N>
-    auto adc(register_type::ax_r<N> dst, imm_for_t<N> imm) {
+    template<typename T>
+    struct imm_for_reg {
+        using type = imm_t<T::size()>;
+    };
+    template<typename T>
+    using imm_for_reg_t = imm_for_reg<T>::type;
+
+    enum class operation : uint32_t {
+        adc,
+        add
+    };
+
+    template<uint8_t Opcode, size_t N>
+    auto ax_imm_instruction(register_type::ax_r<N> dst, imm_for_t<N> imm) {
         return cat(
                 prefix_for_16(dst),
                 prefix_for_64(dst),
-                static_cast<uint8_t>(0x15 ^ (N==8)),
+                static_cast<uint8_t>(Opcode ^ (N==8)),
                 to_codes(imm)
                 );
     }
 
     template<size_t N>
-    auto adc(register_type::reg<N> dst, imm_for_t<N> imm) {
+    auto adc(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x15, N>(dst, i);
+    }
+    template<size_t N>
+    auto add(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x05, N>(dst, i);
+    }
+    template<size_t N>
+    auto and_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x25, N>(dst, i);
+    }
+    template<size_t N>
+    auto cmp(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x3d, N>(dst, i);
+    }
+    template<size_t N>
+    auto or_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x0d, N>(dst, i);
+    }
+    template<size_t N>
+    auto sbb(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x1d, N>(dst, i);
+    }
+    template<size_t N>
+    auto sub(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x2d, N>(dst, i);
+    }
+    template<size_t N>
+    auto test(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0xa9, N>(dst, i);
+    }
+    template<size_t N>
+    auto xor_instruction(register_type::ax_r<N> dst, std::integral auto imm) {
+        imm_for_reg_t<register_type::ax_r<N>> i = imm;
+        return ax_imm_instruction<0x35, N>(dst, i);
+    }
+
+    auto adc(reg_or_mem auto dst, std::integral auto imm) {
+        imm_for_reg_t<std::remove_cvref_t<decltype(dst)>> i = imm;
         return cat(
                 prefix_for_16(dst),
                 prefix_for_64(dst),
-                static_cast<uint8_t>(0x81 ^ (N==8)),
+                static_cast<uint8_t>(0x81 ^ (dst.size()==8)),
                 modrm{}.set_reg(2).set_rm(dst),
-                to_codes(imm)
+                sib_for(dst),
+                to_codes(i)
                 );
-    }
-    auto adc(mem8<register_type::modrm_reg64_address> dst, uint8_t imm8) {
-        return std::to_array({uint8_t{0x80}, uint8_t{modrm{}.set_reg(2).set_rm(dst)}, imm8});
     }
 
     auto adc(gpr auto dst, gpr auto src) {

@@ -67,7 +67,7 @@ namespace amd64{
 
         template<size_t N>
         struct ax_r {
-            constexpr auto size() { return N; }
+            constexpr static auto size() { return N; }
         };
 
         enum class extention : uint8_t {
@@ -92,7 +92,7 @@ namespace amd64{
             constexpr reg(reg32 r) : r{r}{}
             constexpr reg(ax_r<32> t) : r{ reg32::eax } {}
             
-            constexpr auto size() { return 32; }
+            constexpr static auto size() { return 32; }
             reg32 r;
         };
         template<> struct reg<64> {
