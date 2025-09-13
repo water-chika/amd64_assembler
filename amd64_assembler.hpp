@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "cpp_helper/cpp_helper.hpp"
+
 #include "general_purpose_register.hpp"
 
 namespace amd64 {
