@@ -446,23 +446,41 @@ namespace amd64 {
 
     constexpr auto cpuid = opcode_instruction<std::to_array({0x0f, 0xa2})>{};
 
+
     template<opcode_modrm_reg Opcode_regmem>
-    struct regmem_instruction {
-        constexpr static auto operator ()(reg_or_mem auto target) {
-            static_assert(target.size() == 16 || target.size() == 32 || target.size() == 64);
+    constexpr auto gen_regmem_instruction(reg_or_mem auto regmem) {
             return cat(
-                    prefix_for_16(target),
-                    prefix_for_64(target),
+                    prefix_for_16(regmem),
+                    prefix_for_64(regmem),
                     Opcode_regmem.opcode,
-                    modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(target),
-                    sib_for(target)
+                    modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(regmem),
+                    sib_for(regmem)
                     );
+    }
+
+    template<opcode_modrm_reg Opcode_regmem,
+        bool support_8 = true,
+        opcode_modrm_reg Opcode_regmem_for_8 = {Opcode_regmem.opcode^1, Opcode_regmem.modrm_reg}>
+    struct regmem_instruction {
+        template<typename T>
+            requires (reg_or_mem<T> && T::size() == 8 && support_8)
+        constexpr static auto operator ()(T regmem) {
+            static_assert(regmem.size() == 8);
+            return gen_regmem_instruction<Opcode_regmem>(regmem);
+        }
+        template<typename T>
+            requires (reg_or_mem<T> && T::size() != 8)
+        constexpr static auto operator ()(T regmem) {
+            static_assert(regmem.size() == 16 || regmem.size() == 32 || regmem.size() == 64);
+            return gen_regmem_instruction<Opcode_regmem>(regmem);
         }
     };
 
+    constexpr auto neg  = regmem_instruction<{0xf7, 3}>{};
+    constexpr auto mul  = regmem_instruction<{0xf7, 4}>{};
+    constexpr auto imul = regmem_instruction<{0xf7, 5}>{};
     constexpr auto div  = regmem_instruction<{0xf7, 6}>{};
     constexpr auto idiv = regmem_instruction<{0xf7, 7}>{};
-    constexpr auto imul = regmem_instruction<{0xf7, 5}>{};
 
     template<bits<4> Condition_code>
     using jcc_instruction = imm_instruction<0x70 | Condition_code, std::to_array({0x0f, 0x80 | Condition_code})>;
@@ -487,7 +505,10 @@ namespace amd64 {
     constexpr auto jle = jcc_instruction<0xe>{};
     constexpr auto jnle= jcc_instruction<0xf>{};
 
-    constexpr auto jmp = cpp_helper::overloads<imm_instruction<0xeb, 0xe9>,regmem_instruction<{0xff, 4}>>{};
+    constexpr auto jmp = cpp_helper::overloads<
+            imm_instruction<0xeb, 0xe9>,
+            regmem_instruction<{0xff, 4}, false>
+        >{};
 
     template<uint8_t Opcode>
     struct reg_mem_instruction {
