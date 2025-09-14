@@ -446,6 +446,8 @@ namespace amd64 {
 
     constexpr auto cpuid = opcode_instruction<std::to_array({0x0f, 0xa2})>{};
 
+    constexpr auto nop = opcode_instruction<0x90>{};
+
 
     template<opcode_modrm_reg Opcode_regmem>
     constexpr auto gen_regmem_instruction(reg_or_mem auto regmem) {
@@ -476,6 +478,7 @@ namespace amd64 {
         }
     };
 
+    constexpr auto bit_not = regmem_instruction<{0xf7, 2}>{};
     constexpr auto neg  = regmem_instruction<{0xf7, 3}>{};
     constexpr auto mul  = regmem_instruction<{0xf7, 4}>{};
     constexpr auto imul = regmem_instruction<{0xf7, 5}>{};
