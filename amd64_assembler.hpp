@@ -262,26 +262,30 @@ namespace amd64 {
         [std::to_underlying(operation::adc)] = 0x15,
     });
 
-    template<uint8_t Opcode_for_8, auto Opcode_for_16_32>
+    template<uint8_t Opcode>
+    constexpr auto gen_imm_instruction(std::integral auto imm) {
+        return cat(
+                prefix_for_16(imm),
+                prefix_for_64(imm),
+                Opcode,
+                to_codes(imm)
+                );
+    }
+
+    template<uint8_t Opcode_for_8, auto Opcode>
     struct imm_instruction {
-        constexpr static auto operator ()(int8_t imm) {
-            return cat(
-                    prefix_for_16(imm),
-                    prefix_for_64(imm),
-                    Opcode_for_8,
-                    to_codes(imm)
-                    );
+        template<typename Int>
+            requires (std::integral<Int> && sizeof(Int) == 1)
+        constexpr static auto operator ()(Int imm) {
+            static_assert(sizeof(imm) == 1);
+            return gen_imm_instruction<Opcode_for_8>(imm);
         }
-        template<typename T>
-        constexpr static auto operator ()(T imm) {
-            return cat(
-                    prefix_for_16(imm),
-                    prefix_for_64(imm),
-                    Opcode_for_16_32,
-                    to_codes(imm)
-                    );
+        constexpr static auto operator ()(std::integral auto imm) {
+            static_assert(sizeof(imm) == 2 || sizeof(imm) == 4 || sizeof(imm) == 8);
+            return gen_imm_instruction<Opcode>(imm);
         }
     };
+
 
     struct opcode_modrm_reg {
         uint8_t opcode;
@@ -343,7 +347,7 @@ namespace amd64 {
                     );
     }
 
-    template<opcode_modrm_reg Opcode_for_8, opcode_modrm_reg Opcode>
+    template<opcode_modrm_reg Opcode, opcode_modrm_reg Opcode_for_8 = {Opcode.opcode^1, Opcode.modrm_reg}>
     struct regmem_imm_instruction {
         constexpr static auto operator ()(reg_or_mem auto regmem, uint8_t imm) {
             static_assert(regmem.size() == 8);
@@ -360,12 +364,10 @@ namespace amd64 {
         :
             public ax_imm_instruction<Opcode_ax_imm>,
             public regmem_imm_instruction<
-                    { Opcode_regmem_imm.opcode^1, Opcode_regmem_imm.modrm_reg },
                     Opcode_regmem_imm>
     {
         using ax_imm_instruction<Opcode_ax_imm>::operator();
         using regmem_imm_instruction<
-                    { Opcode_regmem_imm.opcode^1, Opcode_regmem_imm.modrm_reg },
                     Opcode_regmem_imm>::operator();
 
         constexpr static auto operator ()(reg_or_mem auto dst, gpr auto src) {
@@ -533,6 +535,7 @@ namespace amd64 {
         reg_regmem_instruction<0x8b>,
         ax_imm_instruction<0xa1>,
         imm_ax_instruction<0xa3>,
-        reg_imm_instruction<0xb0, 0xb8>
+        reg_imm_instruction<0xb0, 0xb8>,
+        regmem_imm_instruction<{0xc7,0}>
     >{};
 }
