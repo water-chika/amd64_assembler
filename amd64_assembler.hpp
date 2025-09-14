@@ -288,24 +288,85 @@ namespace amd64 {
         bit3 modrm_reg;
     };
 
-    template<uint8_t Opcode_ax_imm, opcode_modrm_reg Opcode_regmem_imm, uint8_t Opcode_regmem_reg>
-    struct arithmetic_instruction {
+    template<uint8_t Opcode>
+    struct ax_imm_instruction {
         template<size_t N>
         constexpr static auto operator ()(register_type::ax_r<N> dst, std::integral auto imm) {
             imm_for_reg_t<register_type::ax_r<N>> i = imm;
-            return imm_instruction<Opcode_ax_imm ^ (N==8), Opcode_ax_imm>{}(i);
+            return imm_instruction<Opcode ^ (N==8), Opcode>{}(i);
         }
-        constexpr static auto operator ()(reg_or_mem auto dst, std::integral auto imm) {
-            imm_for_reg_t<std::remove_cvref_t<decltype(dst)>> i = imm;
+    };
+    template<uint8_t Opcode>
+    struct imm_ax_instruction {
+        template<size_t N>
+        constexpr static auto operator ()(std::integral auto imm, register_type::ax_r<N> ax) {
+            imm_for_reg_t<register_type::ax_r<N>> i = imm;
+            return imm_instruction<Opcode ^ (N==8), Opcode>{}(i);
+        }
+    };
+
+    template<uint8_t Opcode>
+    constexpr auto gen_reg_imm_instruction(gpr auto reg, std::integral auto imm) {
+        imm_for_reg_t<std::remove_cvref_t<decltype(reg)>> i = imm;
+        auto reg_encode = static_cast<uint8_t>(reg);
+        assert(reg_encode < 0x10);
+        return cat(
+                    prefix_for_16(reg),
+                    prefix_for_64(reg),
+                    Opcode + (reg_encode & 0xf),
+                    to_codes(i)
+                );
+    }
+
+    template<uint8_t Opcode_for_8, uint8_t Opcode>
+    struct reg_imm_instruction {
+        constexpr static auto operator ()(gpr auto reg, uint8_t imm) {
+            static_assert(reg.size() == 8);
+            return gen_reg_imm_instruction<Opcode_for_8>(reg, imm);
+        }
+        constexpr static auto operator ()(gpr auto reg, std::integral auto imm) {
+            static_assert(reg.size() != 8);
+            return gen_reg_imm_instruction<Opcode>(reg, imm);
+        }
+    };
+
+    template<opcode_modrm_reg Opcode>
+    constexpr auto gen_regmem_imm_instruction(reg_or_mem auto regmem, std::integral auto imm) {
+            imm_for_reg_t<std::remove_cvref_t<decltype(regmem)>> i = imm;
             return cat(
-                    prefix_for_16(dst),
-                    prefix_for_64(dst),
-                    static_cast<uint8_t>(Opcode_regmem_imm.opcode ^ (dst.size()==8)),
-                    modrm{}.set_reg(Opcode_regmem_imm.modrm_reg).set_rm(dst),
-                    sib_for(dst),
+                    prefix_for_16(regmem),
+                    prefix_for_64(regmem),
+                    Opcode.opcode,
+                    modrm{}.set_reg(Opcode.modrm_reg).set_rm(regmem),
+                    sib_for(regmem),
                     to_codes(i)
                     );
+    }
+
+    template<opcode_modrm_reg Opcode_for_8, opcode_modrm_reg Opcode>
+    struct regmem_imm_instruction {
+        constexpr static auto operator ()(reg_or_mem auto regmem, uint8_t imm) {
+            static_assert(regmem.size() == 8);
+            return gen_regmem_imm_instruction<Opcode_for_8>(regmem, imm);
         }
+        constexpr static auto operator ()(reg_or_mem auto regmem, std::integral auto imm) {
+            static_assert(regmem.size() != 8);
+            return gen_regmem_imm_instruction<Opcode>(regmem, imm);
+        }
+    };
+
+    template<uint8_t Opcode_ax_imm, opcode_modrm_reg Opcode_regmem_imm, uint8_t Opcode_regmem_reg>
+    struct arithmetic_instruction
+        :
+            public ax_imm_instruction<Opcode_ax_imm>,
+            public regmem_imm_instruction<
+                    { Opcode_regmem_imm.opcode^1, Opcode_regmem_imm.modrm_reg },
+                    Opcode_regmem_imm>
+    {
+        using ax_imm_instruction<Opcode_ax_imm>::operator();
+        using regmem_imm_instruction<
+                    { Opcode_regmem_imm.opcode^1, Opcode_regmem_imm.modrm_reg },
+                    Opcode_regmem_imm>::operator();
 
         constexpr static auto operator ()(reg_or_mem auto dst, gpr auto src) {
             return cat(
@@ -425,4 +486,53 @@ namespace amd64 {
     constexpr auto jnle= jcc_instruction<0xf>{};
 
     constexpr auto jmp = cpp_helper::overloads<imm_instruction<0xeb, 0xe9>,regmem_instruction<{0xff, 4}>>{};
+
+    template<uint8_t Opcode>
+    struct reg_mem_instruction {
+        constexpr static auto operator ()(gpr auto target, memory auto src) {
+            static_assert(target.size() == 16 || target.size() == 32 || target.size() == 64);
+            return cat(
+                    prefix_for_16(target),
+                    prefix_for_64(target),
+                    Opcode,
+                    modrm{}.set_reg(target).set_rm(src),
+                    sib_for(src)
+                    );
+        }
+    };
+    constexpr auto lea = reg_mem_instruction<0x8d>{};
+
+    template<uint8_t Opcode>
+    constexpr auto gen_regmem_reg_instruction(reg_or_mem auto regmem, gpr auto reg) {
+            static_assert(regmem.size() == reg.size());
+            return cat(
+                    prefix_for_16(reg),
+                    prefix_for_64(reg),
+                    static_cast<uint8_t>(Opcode ^ (reg.size() == 8)),
+                    modrm{}.set_reg(reg).set_rm(regmem),
+                    sib_for(regmem)
+                    );
+    }
+
+    template<uint8_t Opcode>
+    struct regmem_reg_instruction {
+        constexpr static auto operator ()(reg_or_mem auto regmem, gpr auto reg) {
+            return gen_regmem_reg_instruction<Opcode>(regmem, reg);
+        }
+    };
+    template<uint8_t Opcode>
+    struct reg_regmem_instruction {
+        constexpr static auto operator ()(gpr auto reg, reg_or_mem auto regmem) {
+            return gen_regmem_reg_instruction<Opcode>(regmem, reg);
+        }
+    };
+
+    constexpr
+    auto mov = cpp_helper::overloads<
+        regmem_reg_instruction<0x89>,
+        reg_regmem_instruction<0x8b>,
+        ax_imm_instruction<0xa1>,
+        imm_ax_instruction<0xa3>,
+        reg_imm_instruction<0xb0, 0xb8>
+    >{};
 }
