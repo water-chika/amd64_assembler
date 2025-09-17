@@ -19,6 +19,12 @@ int main() {
                 std::array<uint8_t, 2>{0x11, 0xd8}
                 )
           );
+
+    assert(std::ranges::equal(
+                ret(),
+                std::array<uint8_t, 1>{0xc3}
+                )
+            );
     
     return 0;
 }

@@ -191,17 +191,8 @@ namespace amd64 {
         std::ranges::copy(second, res.begin()+N1);
         return res;
     }
-    template<size_t N>
-    constexpr auto cat(std::array<uint8_t, N> first, uint8_t second) {
-        auto res = std::array<uint8_t, N+1>{};
-        std::ranges::copy(first, res.begin());
-        res[N] = second;
-        return res;
-    }
-    constexpr auto cat(auto first, modrm second) {
-        return cat(first, uint8_t{second});
-    }
-    constexpr auto cat(auto first, auto second, auto... others) {
+    template<size_t N1, size_t N2>
+    constexpr auto cat(std::array<uint8_t, N1> first, std::array<uint8_t, N2> second, auto... others) {
         return cat(cat(first,second), others...);
     }
     template<size_t N>
@@ -267,7 +258,7 @@ namespace amd64 {
         return cat(
                 prefix_for_16(imm),
                 prefix_for_64(imm),
-                Opcode,
+                std::array<uint8_t,1>{Opcode},
                 to_codes(imm)
                 );
     }
@@ -317,7 +308,7 @@ namespace amd64 {
         return cat(
                     prefix_for_16(reg),
                     prefix_for_64(reg),
-                    Opcode + (reg_encode & 0xf),
+                    std::array<uint8_t,1>{Opcode + (reg_encode & 0xf)},
                     to_codes(i)
                 );
     }
@@ -340,8 +331,8 @@ namespace amd64 {
             return cat(
                     prefix_for_16(regmem),
                     prefix_for_64(regmem),
-                    Opcode.opcode,
-                    modrm{}.set_reg(Opcode.modrm_reg).set_rm(regmem),
+                    std::array<uint8_t,1>{Opcode.opcode},
+                    std::array<uint8_t,1>{modrm{}.set_reg(Opcode.modrm_reg).set_rm(regmem)},
                     sib_for(regmem),
                     to_codes(i)
                     );
@@ -374,8 +365,8 @@ namespace amd64 {
             return cat(
                     prefix_for_16(dst),
                     prefix_for_64(dst),
-                    static_cast<uint8_t>(Opcode_regmem_reg ^ (8 == src.size())),
-                    modrm{}.set_reg(src.r).set_rm(dst),
+                    std::array<uint8_t,1>{Opcode_regmem_reg ^ (8 == src.size())},
+                    std::array<uint8_t,1>{modrm{}.set_reg(src.r).set_rm(dst)},
                     sib_for(dst)
                     );
         }
@@ -425,7 +416,7 @@ namespace amd64 {
             return cat(
                     prefix_for_16(imm_t<N>{}),
                     prefix_for_64(imm_t<N>{}),
-                    Opcode
+                    std::array<uint8_t,1>{Opcode}
                     );
         }
     };
@@ -448,14 +439,16 @@ namespace amd64 {
 
     constexpr auto nop = opcode_instruction<0x90>{};
 
+    constexpr auto ret = opcode_instruction<0xc3>{};
+
 
     template<opcode_modrm_reg Opcode_regmem>
     constexpr auto gen_regmem_instruction(reg_or_mem auto regmem) {
             return cat(
                     prefix_for_16(regmem),
                     prefix_for_64(regmem),
-                    Opcode_regmem.opcode,
-                    modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(regmem),
+                    std::array<uint8_t, 1>{Opcode_regmem.opcode},
+                    std::array<uint8_t, 1>{modrm{}.set_reg(Opcode_regmem.modrm_reg).set_rm(regmem)},
                     sib_for(regmem)
                     );
     }
@@ -520,8 +513,8 @@ namespace amd64 {
             return cat(
                     prefix_for_16(target),
                     prefix_for_64(target),
-                    Opcode,
-                    modrm{}.set_reg(target).set_rm(src),
+                    std::array<uint8_t, 1>{Opcode},
+                    std::array<uint8_t, 1>{modrm{}.set_reg(target).set_rm(src)},
                     sib_for(src)
                     );
         }
@@ -534,8 +527,8 @@ namespace amd64 {
             return cat(
                     prefix_for_16(reg),
                     prefix_for_64(reg),
-                    static_cast<uint8_t>(Opcode ^ (reg.size() == 8)),
-                    modrm{}.set_reg(reg).set_rm(regmem),
+                    std::array<uint8_t, 1>{(Opcode ^ (reg.size() == 8))},
+                    std::array<uint8_t, 1>{modrm{}.set_reg(reg).set_rm(regmem)},
                     sib_for(regmem)
                     );
     }
