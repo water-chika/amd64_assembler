@@ -13,23 +13,17 @@
 
 namespace amd64 {
     constexpr auto instruction_length_limit = 15;
-    template<size_t N>
-    struct bits {
-        static_assert(N <= 8);
-        constexpr bits() = default;
-        constexpr bits(uint8_t v) : m_v{v}
-        {
-            assert(v < (1<<N));
-        }
-        constexpr operator uint8_t() const {
-            return m_v;
-        }
-        uint8_t m_v : N;
-    };
 
-    using bit1 = bits<1>;
-    using bit2 = bits<2>;
-    using bit3 = bits<3>;
+    using cpp_helper::bitset;
+
+    using bit1 = bitset<1>;
+    using bit2 = bitset<2>;
+    using bit3 = bitset<3>;
+    using bit4 = bitset<4>;
+    using bit5 = bitset<5>;
+    using bit6 = bitset<6>;
+    using bit7 = bitset<7>;
+    using bit8 = bitset<8>;
 
     template<typename Reg>
     struct base{
@@ -478,10 +472,10 @@ namespace amd64 {
     constexpr auto div  = regmem_instruction<{0xf7, 6}>{};
     constexpr auto idiv = regmem_instruction<{0xf7, 7}>{};
 
-    template<bits<4> Condition_code>
-    using jcc_instruction = imm_instruction<0x70 | Condition_code, std::to_array({0x0f, 0x80 | Condition_code})>;
+    template<bitset<4> Condition_code>
+    using jcc_instruction = imm_instruction<bit4{7} + Condition_code, bit8{0x0f} + bit4{8} + Condition_code>;
 
-    template<bits<4> Condition_code>
+    template<bitset<4> Condition_code>
     constexpr auto jcc = jcc_instruction<Condition_code>{};
 
     constexpr auto jo  = jcc_instruction<0x0>{};
