@@ -38,22 +38,19 @@ namespace amd64 {
     struct index{
         Reg m_reg;
     };
-    template<typename Ref, typename... Refs>
+    template<typename Ref>
     struct mem8 {
         Ref m_ref;
-        mem8<Refs...> m_refs;
-    };
-    template<typename Ref>
-    struct mem8<Ref> {
-        Ref m_ref;
+
+        constexpr static auto size() { return 8; }
     };
 
     template<typename T>
     struct is_memory {
         constexpr static bool value = false;
     };
-    template<typename... Refs>
-    struct is_memory<mem8<Refs...>> {
+    template<typename Ref>
+    struct is_memory<mem8<Ref>> {
         constexpr static bool value = true;
     };
 
@@ -178,6 +175,9 @@ namespace amd64 {
     constexpr auto sib_for(gpr auto reg) {
         return std::array<uint8_t, 0>{};
     }
+    constexpr auto sib_for(mem8<register_type::modrm_reg64_address>) {
+        return std::array<uint8_t, 0>{};
+    }
 
     template<size_t N1, size_t N2>
     constexpr auto cat(std::array<uint8_t, N1> first, std::array<uint8_t, N2> second) {
@@ -241,7 +241,15 @@ namespace amd64 {
 
     enum class operation : uint32_t {
         adc,
-        add
+        add,
+        sub,
+        mul,
+        div,
+        mov,
+        logic_and,
+        logic_or,
+        logic_xor,
+        logic_not,
     };
 
     constexpr auto ax_imm_opcode_map = std::to_array({
@@ -369,7 +377,7 @@ namespace amd64 {
     constexpr auto adc      = arithmetic_instruction<0x15, {0x81,2}, 0x11>{};
     constexpr auto add      = cpp_helper::overloads{
         arithmetic_instruction<0x05, {0x81,0}, 0x01>{},
-        [](auto... operands) { throw std::runtime_error{"wrong operands"}; }
+        [](auto... operands) { throw std::runtime_error{__FILE__ ":" "wrong operands"}; return std::array<uint8_t, 0>{};}
     };
     constexpr auto bit_and  = arithmetic_instruction<0x25, {0x81,4}, 0x21>{};
     constexpr auto cmp      = arithmetic_instruction<0x3d, {0x81,7}, 0x39>{};

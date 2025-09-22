@@ -65,11 +65,6 @@ namespace amd64{
 
         enum class extended_reg64 : uint8_t {};
 
-        template<size_t N>
-        struct ax_r {
-            constexpr static auto size() { return N; }
-        };
-
         enum class extention : uint8_t {
             legacy,
             extended
@@ -78,14 +73,29 @@ namespace amd64{
         struct reg {
         };
 
+        template<size_t N>
+        struct ax_r {
+            static constexpr auto size() { return N; }
+            operator reg<N>() {
+                return {0};
+            }
+        };
+
+
 
         template<> struct reg<8> {
             reg8 r;
-            constexpr auto size() { return 8; }
+            static constexpr auto size() { return 8; }
+            operator reg8() {
+                return r;
+            }
         };
         template<> struct reg<16> {
             reg16 r;
-            constexpr auto size() { return 16; }
+            static constexpr auto size() { return 16; }
+            operator reg16() {
+                return r;
+            }
         };
         template<> struct reg<32> {
             constexpr reg() = default;
@@ -94,10 +104,19 @@ namespace amd64{
             
             constexpr static auto size() { return 32; }
             reg32 r;
+
+            operator reg32() {
+                return r;
+            }
         };
         template<> struct reg<64> {
-            constexpr auto size() { return 64; }
-            reg64 r; };
+            static constexpr auto size() { return 64; }
+            reg64 r;
+
+            operator reg64() {
+                return r;
+            }
+        };
         
         template<> struct reg<8, extention::extended> {
             constexpr auto size() { return 8; }
