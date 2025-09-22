@@ -6,6 +6,7 @@
 #include <cassert>
 #include <algorithm>
 #include <utility>
+#include <stdexcept>
 
 #include "cpp_helper/cpp_helper.hpp"
 
@@ -366,7 +367,10 @@ namespace amd64 {
         }
     };
     constexpr auto adc      = arithmetic_instruction<0x15, {0x81,2}, 0x11>{};
-    constexpr auto add      = arithmetic_instruction<0x05, {0x81,0}, 0x01>{};
+    constexpr auto add      = cpp_helper::overloads{
+        arithmetic_instruction<0x05, {0x81,0}, 0x01>{},
+        [](auto... operands) { throw std::runtime_error{"wrong operands"}; }
+    };
     constexpr auto bit_and  = arithmetic_instruction<0x25, {0x81,4}, 0x21>{};
     constexpr auto cmp      = arithmetic_instruction<0x3d, {0x81,7}, 0x39>{};
     constexpr auto bit_or   = arithmetic_instruction<0x0d, {0x81,1}, 0x09>{};
