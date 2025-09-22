@@ -77,10 +77,88 @@ namespace amd64 {
     constexpr
     auto mov = cpp_helper::overloads<
         regmem_reg_instruction<0x89>,
+        reg_reg_instruction<0x89>,
         reg_regmem_instruction<0x8b>,
         ax_imm_instruction<0xa1>,
         imm_ax_instruction<0xa3>,
         reg_imm_instruction<0xb0, 0xb8>,
         regmem_imm_instruction<{0xc7,0}>
     >{};
+
+}
+
+#include <vector>
+namespace amd64 {
+    using operands_t = std::variant<
+            std::tuple<register_type::reg<32>>,
+            std::tuple<register_type::reg<32>, register_type::reg<32>>,
+            std::tuple<register_type::reg<8>, uint8_t>,
+            std::tuple<register_type::reg<16>, uint16_t>,
+            std::tuple<register_type::reg<32>, uint32_t>,
+            std::tuple<register_type::reg<32>, register_type::reg<32>, register_type::reg<32>>
+            >;
+
+    template<typename T>
+    concept operands_2 = std::tuple_size_v<T> == 2;
+
+    struct statement {
+        operation op;
+        operands_t operands;
+    };
+
+    auto assemble(statement statement) {
+        switch (statement.op) {
+        case operation::add:
+        {
+            return std::visit(
+                    cpp_helper::overloads{
+                        [](operands_2 auto operands) {
+                            auto g_codes = add(std::get<0>(operands), std::get<1>(operands));
+                            auto codes = std::vector<uint8_t>(g_codes.begin(), g_codes.end());
+                            return codes;
+                        },
+                        [](auto operands) {
+                            //throw std::runtime_error{"operands count error"};
+                            return std::vector<uint8_t>{};
+                        }
+                    },
+                    statement.operands
+                );
+        }
+        break;
+        case operation::adc:
+        {
+            return std::visit(
+                    cpp_helper::overloads{
+                        [](operands_2 auto operands) {
+                            auto g_codes = adc(std::get<0>(operands), std::get<1>(operands));
+                            auto codes = std::vector<uint8_t>(g_codes.begin(), g_codes.end());
+                            return codes;
+                        },
+                        [](auto operands) {
+                            throw std::runtime_error{"operands count error"};
+                            return std::vector<uint8_t>{};
+                        }
+                    },
+                    statement.operands
+                );
+        }
+        break;
+        default:
+        {
+            throw std::runtime_error{"unknown operation"};
+            return std::vector<uint8_t>{};
+        }
+        break;
+        }
+    }
+
+    auto assemble(std::vector<statement> statements) {
+        auto codes = std::vector<uint8_t>{};
+        for (auto& statement : statements) {
+            auto g_codes = assemble(statement);
+            codes.append_range(g_codes);
+        }
+        return codes;
+    }
 }

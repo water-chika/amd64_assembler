@@ -539,4 +539,10 @@ namespace amd64 {
             return gen_regmem_reg_instruction<Opcode>(regmem, reg);
         }
     };
+    template<uint8_t Opcode>
+    struct reg_reg_instruction {
+        constexpr static auto operator ()(gpr auto regmem, gpr auto reg) {
+            return gen_regmem_reg_instruction<Opcode>(regmem, reg);
+        }
+    };
 }

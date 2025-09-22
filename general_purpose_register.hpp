@@ -159,4 +159,6 @@ namespace amd64{
     constexpr auto rax = register_type::ax_r<64>{};
 
     constexpr auto ebx = register_type::reg<32>{ register_type::reg32::ebx };
+
+    constexpr auto rsp = register_type::reg<64>{ register_type::reg64::rsp };
 }
