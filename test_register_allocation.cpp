@@ -2,9 +2,21 @@
 
 #include <iostream>
 
-std::ostream& operator<<(std::ostream& out, register_allocation::physical_register_t pr) {
-    return out << pr.index;
-}
+using physical_register_t = uint8_t;
+
+struct instruction {
+    std::vector<physical_register_t> reads;
+    std::vector<physical_register_t> writes;
+
+    auto& set_read_physical_registers(std::vector<physical_register_t> prs) {
+        reads = std::move(prs);
+        return *this;
+    }
+    auto& set_write_physical_registers(std::vector<physical_register_t> prs) {
+        writes = std::move(prs);
+        return *this;
+    }
+};
 
 int main() {
     using namespace register_allocation;
@@ -33,16 +45,16 @@ int main() {
         },
     };
 
-    auto instructions = register_allocate(in_instructions);
+    auto instructions = register_allocate<physical_register_t, 17, instruction>(in_instructions);
 
     for (const auto& instruction : instructions) {
         std::cout << "instruction:";
-        for (const auto& pr : instruction.read_physical_registers) {
-            std::cout << pr << ", ";
+        for (const auto& pr : instruction.reads) {
+            std::cout << (size_t)pr << ", ";
         }
         std::cout << "->";
-        for (const auto& pr : instruction.write_physical_registers) {
-            std::cout << pr << ", ";
+        for (const auto& pr : instruction.writes) {
+            std::cout << (size_t)pr << ", ";
         }
         std::cout << std::endl;
     }

@@ -7,15 +7,6 @@
 
 namespace register_allocation {
     using virtual_register_t = uint32_t;
-    struct physical_register {
-        uint32_t index : 4;
-        operator uint32_t() {
-            return index;
-        }
-    };
-    using physical_register_t = physical_register;
-    constexpr auto max_physical_register = physical_register{ 0x0f };
-    constexpr auto physical_register_count = 0x10;
 
     using memory_t = uint32_t;
 
@@ -24,38 +15,36 @@ namespace register_allocation {
         std::vector<virtual_register_t> write_virtual_registers;
     };
 
-    struct out_instruction {
-        std::vector<physical_register_t> read_physical_registers;
-        std::vector<physical_register_t> write_physical_registers;
-    };
-
     auto virtual_register_to_memory(virtual_register_t reg) {
         return reg;
     }
 
-    std::vector<out_instruction> register_allocate(std::vector<in_instruction> in_instructions) {
-        auto out_instructions = std::vector<out_instruction>{};
+    template<typename Physical_register, size_t Physical_register_count, typename Out_instruction>
+    std::vector<Out_instruction> register_allocate(std::vector<in_instruction> in_instructions) {
+        auto out_instructions = std::vector<Out_instruction>{};
         //out_instructions.reserve(in_instructions.size());
 
+        using physical_register_t = Physical_register;
         uint32_t current_physical_register = 0;
-        std::vector<virtual_register_t> physical_to_virtual_register(physical_register_count);
-        std::unordered_map<virtual_register_t, physical_register_t> virtual_to_physical_register{};
-        std::vector<bool> physical_dirty(physical_register_count);
+        auto physical_to_virtual_register = 
+            std::array<virtual_register_t, Physical_register_count>{};
+        auto virtual_to_physical_register =
+            std::unordered_map<virtual_register_t, physical_register_t>{};
+        auto physical_dirty =
+            std::array<bool, Physical_register_count>{};
 
         auto insert_load_instruction =
             [&out_instructions](physical_register_t pr, memory_t mem) {
+                auto load = Out_instruction{}.set_write_physical_registers({pr});
                 out_instructions.emplace_back(
-                        out_instruction{
-                        .write_physical_registers = {pr},
-                        }
+                        load
                         );
             };
         auto insert_store_instruction =
             [&out_instructions](memory_t mem, physical_register_t pr) {
+                auto store = Out_instruction{}.set_read_physical_registers({pr});
                 out_instructions.emplace_back(
-                        out_instruction{
-                        .read_physical_registers = {pr},
-                        }
+                        store
                         );
         };
 
@@ -92,8 +81,8 @@ namespace register_allocation {
             [&current_physical_register]
             () {
                 auto reg = current_physical_register;
-                current_physical_register = current_physical_register == max_physical_register.index ? 0 : current_physical_register + 1;
-                return physical_register{reg};
+                current_physical_register = current_physical_register == Physical_register_count - 1 ? 0 : current_physical_register + 1;
+                return reg;
         };
 
         auto make_virtual_register_resident =
@@ -121,10 +110,7 @@ namespace register_allocation {
             }
 
             out_instructions.emplace_back(
-                    out_instruction{
-                    .read_physical_registers = read_prs,
-                    .write_physical_registers = write_prs
-                    }
+                    Out_instruction{}.set_read_physical_registers(read_prs).set_write_physical_registers(write_prs)
                     );
         }
         return out_instructions;
