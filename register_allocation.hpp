@@ -6,25 +6,24 @@
 #include <unordered_set>
 
 namespace register_allocation {
-    using virtual_register_t = uint32_t;
-
     using memory_t = uint32_t;
 
-    struct in_instruction {
-        std::vector<virtual_register_t> read_virtual_registers;
-        std::vector<virtual_register_t> write_virtual_registers;
-    };
-
-    auto virtual_register_to_memory(virtual_register_t reg) {
+    auto virtual_register_to_memory(auto reg) {
         return reg;
     }
 
-    template<typename Physical_register, size_t Physical_register_count, typename Out_instruction>
-    std::vector<Out_instruction> register_allocate(std::vector<in_instruction> in_instructions) {
+    template<
+        typename Out_instruction,
+        typename In_instruction,
+        typename Physical_register = Out_instruction::register_t,
+        size_t Physical_register_count = Out_instruction::register_count,
+        typename Virtual_register = In_instruction::register_t>
+    std::vector<Out_instruction> register_allocate(std::vector<In_instruction> in_instructions) {
         auto out_instructions = std::vector<Out_instruction>{};
         //out_instructions.reserve(in_instructions.size());
 
         using physical_register_t = Physical_register;
+        using virtual_register_t = Virtual_register;
         uint32_t current_physical_register = 0;
         auto physical_to_virtual_register = 
             std::array<virtual_register_t, Physical_register_count>{};
@@ -35,14 +34,14 @@ namespace register_allocation {
 
         auto insert_load_instruction =
             [&out_instructions](physical_register_t pr, memory_t mem) {
-                auto load = Out_instruction{}.set_write_physical_registers({pr});
+                auto load = Out_instruction{}.set_writes({pr});
                 out_instructions.emplace_back(
                         load
                         );
             };
         auto insert_store_instruction =
             [&out_instructions](memory_t mem, physical_register_t pr) {
-                auto store = Out_instruction{}.set_read_physical_registers({pr});
+                auto store = Out_instruction{}.set_reads({pr});
                 out_instructions.emplace_back(
                         store
                         );
@@ -97,12 +96,12 @@ namespace register_allocation {
 
         for (const auto& instruction : in_instructions) {
             auto read_prs = std::vector<physical_register_t>();
-            for (const auto& vr : instruction.read_virtual_registers) {
+            for (const auto& vr : instruction.get_reads()) {
                 make_virtual_register_resident(vr, true);
                 read_prs.emplace_back(virtual_to_physical_register[vr]);
             }
             auto write_prs = std::vector<physical_register_t>();
-            for (const auto& vr : instruction.write_virtual_registers) {
+            for (const auto& vr : instruction.get_writes()) {
                 make_virtual_register_resident(vr, false);
                 auto pr = virtual_to_physical_register[vr];
                 write_prs.emplace_back(pr);
@@ -110,7 +109,7 @@ namespace register_allocation {
             }
 
             out_instructions.emplace_back(
-                    Out_instruction{}.set_read_physical_registers(read_prs).set_write_physical_registers(write_prs)
+                    Out_instruction{}.set_reads(read_prs).set_writes(write_prs)
                     );
         }
         return out_instructions;

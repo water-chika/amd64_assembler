@@ -2,50 +2,59 @@
 
 #include <iostream>
 
-using physical_register_t = uint8_t;
-
+template<typename Register, size_t Register_count = std::numeric_limits<Register>::max()>
 struct instruction {
-    std::vector<physical_register_t> reads;
-    std::vector<physical_register_t> writes;
+    using register_t = Register;
 
-    auto& set_read_physical_registers(std::vector<physical_register_t> prs) {
-        reads = std::move(prs);
+    static constexpr auto register_count = Register_count;
+
+    std::vector<register_t> reads;
+    std::vector<register_t> writes;
+
+    auto& set_reads(std::vector<register_t> rs) {
+        reads = std::move(rs);
         return *this;
     }
-    auto& set_write_physical_registers(std::vector<physical_register_t> prs) {
-        writes = std::move(prs);
+    auto& set_writes(std::vector<register_t> rs) {
+        writes = std::move(rs);
         return *this;
+    }
+    auto& get_reads() const {
+        return reads;
+    }
+    auto& get_writes() const {
+        return writes;
     }
 };
 
 int main() {
     using namespace register_allocation;
 
-    auto in_instructions = std::vector<in_instruction>{
-        in_instruction{
-            .write_virtual_registers = {
+    auto in_instructions = std::vector<instruction<uint32_t>>{
+        {
+            .writes= {
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
             },
         },
-        in_instruction{
-            .read_virtual_registers = {
+        {
+            .reads= {
                 0, 1, 2, 3, 4, 5
             },
-            .write_virtual_registers = {
+            .writes= {
                 16, 17, 18
             }
         },
-        in_instruction{
-            .read_virtual_registers = {
+        {
+            .reads= {
                 16,17,18
             },
-            .write_virtual_registers = {
+            .writes= {
                 19,20,21
             }
         },
     };
 
-    auto instructions = register_allocate<physical_register_t, 17, instruction>(in_instructions);
+    auto instructions = register_allocate<instruction<uint8_t, 17>>(in_instructions);
 
     for (const auto& instruction : instructions) {
         std::cout << "instruction:";
