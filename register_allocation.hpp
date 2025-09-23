@@ -40,7 +40,7 @@ namespace register_allocation {
         uint32_t current_physical_register = 0;
         std::vector<virtual_register_t> physical_to_virtual_register(physical_register_count);
         std::unordered_map<virtual_register_t, physical_register_t> virtual_to_physical_register{};
-        std::vector<bool> physical_dirty{};
+        std::vector<bool> physical_dirty(physical_register_count);
 
         auto insert_load_instruction =
             [&out_instructions](physical_register_t pr, memory_t mem) {
@@ -80,7 +80,7 @@ namespace register_allocation {
             ]
          (physical_register_t pr, virtual_register_t vr, bool is_read) {
             spill_physical_register(pr);
-            if (!is_read) {
+            if (is_read) {
                 const auto& vr_memory = virtual_register_to_memory(vr);
                 insert_load_instruction(pr, vr_memory);
             }
@@ -107,15 +107,17 @@ namespace register_allocation {
         };
 
         for (const auto& instruction : in_instructions) {
-            auto read_prs = std::vector<physical_register_t>(instruction.read_virtual_registers.size());
+            auto read_prs = std::vector<physical_register_t>();
             for (const auto& vr : instruction.read_virtual_registers) {
                 make_virtual_register_resident(vr, true);
                 read_prs.emplace_back(virtual_to_physical_register[vr]);
             }
-            auto write_prs = std::vector<physical_register_t>(instruction.write_virtual_registers.size());
+            auto write_prs = std::vector<physical_register_t>();
             for (const auto& vr : instruction.write_virtual_registers) {
                 make_virtual_register_resident(vr, false);
-                write_prs.emplace_back(virtual_to_physical_register[vr]);
+                auto pr = virtual_to_physical_register[vr];
+                write_prs.emplace_back(pr);
+                physical_dirty[pr] = true;
             }
 
             out_instructions.emplace_back(
