@@ -21,11 +21,11 @@ add_executable(
 target_link_libraries(test_symbol PUBLIC amd64_assembler)
 
 add_executable(
-    test
+    test_amd64_assembler
     test.cpp
 )
 
-target_link_libraries(test PUBLIC amd64_assembler)
+target_link_libraries(test_amd64_assembler PUBLIC amd64_assembler)
 
 add_executable(
     test_scan
@@ -33,4 +33,9 @@ add_executable(
 )
 
 target_link_libraries(test_scan PUBLIC amd64_assembler)
+
+add_test(
+    NAME test_scan
+    COMMAND test_scan ${CMAKE_CURRENT_SOURCE_DIR}/data/test_scan.s
+)
 

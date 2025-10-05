@@ -1,9 +1,10 @@
 #include <scanner.hpp>
 
 #include <iostream>
+#include <fstream>
 
-int main() {
-    auto scanner = scanner::scanner{std::cin};
+int test(std::istream& in) {
+    auto scanner = scanner::scanner{in};
 
     while (true) {
         auto str_opt = scanner.next();
@@ -23,4 +24,21 @@ int main() {
         }
     }
     std::cout << std::endl;
+    return 0;
+}
+
+int main(int argc, const char* argv[]) {
+    try {
+        if (argc <= 1) {
+            return test(std::cin);
+        }
+        else {
+            auto in = std::ifstream{argv[1]};
+            return test(in);
+        }
+    }
+    catch (std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
+    }
 }

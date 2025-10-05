@@ -9,6 +9,7 @@ target_compile_features(amd64_assembler PUBLIC cxx_std_23)
 
 target_include_directories(amd64_assembler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+enable_testing()
 add_subdirectory(tests)
 
 add_executable(
