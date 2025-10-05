@@ -26,3 +26,11 @@ add_executable(
 )
 
 target_link_libraries(test PUBLIC amd64_assembler)
+
+add_executable(
+    test_scan
+    test_scan.cpp
+)
+
+target_link_libraries(test_scan PUBLIC amd64_assembler)
+
