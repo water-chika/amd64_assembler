@@ -4,6 +4,20 @@
 #include <optional>
 #include <vector>
 #include <cctype>
+#include <unordered_map>
+
+template<>
+struct std::hash<std::vector<char>> {
+
+    size_t operator()(const std::vector<char>& v) const {
+        size_t s = v.size() << 2;
+        for (auto c : v) {
+            s ^= c;
+            s += c;
+        }
+        return s;
+    }
+};
 
 namespace scanner {
     struct word_splitter {
@@ -33,14 +47,38 @@ namespace scanner {
         }
     };
     struct scanner {
-        std::istream& in;
+        word_splitter splitter;
+        std::vector<std::vector<char>> strings;
+        std::unordered_map<std::vector<char>, size_t> string_indices;
 
-        auto begin() {
+        auto get_string(size_t i) {
+            return strings[i];
         }
-        auto end() {
+        auto add_string(std::vector<char> str) {
+            auto i = strings.size();
+            strings.emplace_back(str);
+            string_indices.emplace(str, i);
+        }
+        auto contains(const std::vector<char>& str) {
+            return string_indices.contains(str);
+        }
+        auto string_index(const std::vector<char>& str) {
+            return string_indices[str];
         }
 
-        auto next() {
+        std::optional<size_t> next() {
+            auto word_opt = splitter.next();
+            if (!word_opt) {
+                return std::nullopt;
+            }
+            else {
+                auto word = word_opt.value();
+                if (!contains(word)) {
+                    add_string(word);
+                }
+                auto i = string_index(word);
+                return i;
+            }
         }
     };
 }
