@@ -202,16 +202,14 @@ namespace amd64 {
     template<> struct imm<64> { using type = uint64_t; };
     template<size_t N> using imm_t = imm<N>::type;
 
-    auto to_codes(uint8_t imm8) { return std::array<uint8_t, 1>{imm8}; }
-    auto to_codes(uint16_t imm16) {
-        return std::array<uint8_t, 2>{
-            static_cast<uint8_t>(imm16), static_cast<uint8_t>(imm16>>8) };
+    auto to_codes(std::integral auto imm) {
+        auto codes = std::array<uint8_t, sizeof(imm)>{};
+        for (auto& code : codes) {
+            code = static_cast<uint8_t>(imm & 0xff);
+            imm >>= 8;
+        }
+        return codes;
     }
-    auto to_codes(uint32_t imm32) {
-        return std::array<uint8_t, 4>{static_cast<uint8_t>(imm32), static_cast<uint8_t>(imm32>>8), static_cast<uint8_t>(imm32>>16), static_cast<uint8_t>(imm32>>24)};
-    }
-    auto to_codes(int8_t imm8) { return to_codes(static_cast<uint8_t>(imm8));}
-
     auto prefix_for_16(auto imm) {
         return std::array<uint8_t, 0>{};
     }
@@ -384,12 +382,14 @@ namespace amd64 {
 
     template<opcode_modrm_reg Opcode, opcode_modrm_reg Opcode_for_8 = {Opcode.opcode^1, Opcode.modrm_reg}>
     struct regmem_imm_instruction {
-        constexpr static auto operator ()(reg_or_mem auto regmem, uint8_t imm) {
-            static_assert(regmem.size() == 8);
+        template<typename T>
+            requires (reg_or_mem<T> && T::size() == 8)
+        constexpr static auto operator ()(T regmem, uint8_t imm) {
             return gen_regmem_imm_instruction<Opcode_for_8>(regmem, imm);
         }
-        constexpr static auto operator ()(reg_or_mem auto regmem, std::integral auto imm) {
-            static_assert(regmem.size() != 8);
+        template<typename T>
+            requires (reg_or_mem<T> && T::size() != 8)
+        constexpr static auto operator ()(T regmem, std::integral auto imm) {
             return gen_regmem_imm_instruction<Opcode>(regmem, imm);
         }
         using support_argument_types = types::types<

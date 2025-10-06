@@ -51,7 +51,7 @@ namespace scanner {
         std::vector<std::vector<char>> strings;
         std::unordered_map<std::vector<char>, size_t> string_indices;
 
-        auto get_string(size_t i) {
+        const auto& get_string(size_t i) const {
             return strings[i];
         }
         auto add_string(std::vector<char> str) {

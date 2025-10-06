@@ -182,6 +182,7 @@ int main() {
     }
     catch (std::exception& except) {
         std::cout << except.what() << std::endl;
+        return -1;
     }
     
     return 0;
