@@ -58,6 +58,7 @@ namespace scanner {
             auto i = strings.size();
             strings.emplace_back(str);
             string_indices.emplace(str, i);
+            return i;
         }
         auto contains(const std::vector<char>& str) {
             return string_indices.contains(str);
